@@ -55,7 +55,9 @@ export default function SignupPage() {
           />
         </div>
         <div>
-          <label className="text-sm text-gray-600 block mb-1">کد دعوت</label>
+          <label className="text-sm text-gray-600 block mb-1">
+            کد دعوت <span className="text-xs text-gray-400">(از ادمین فروشگاه بگیرید — الزامی)</span>
+          </label>
           <input
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
@@ -65,10 +67,13 @@ export default function SignupPage() {
           />
         </div>
         <div>
-          <label className="text-sm text-gray-600 block mb-1">کد معرف (اختیاری)</label>
+          <label className="text-sm text-gray-600 block mb-1">
+            کد تخفیف یک دوست <span className="text-xs text-gray-400">(اختیاری — اگه دوستتون معرفی کرده)</span>
+          </label>
           <input
             value={referrerCode}
             onChange={(e) => setReferrerCode(e.target.value)}
+            placeholder="کد شخصی دوستتون"
             className="border rounded-lg px-3 py-2 w-full text-sm"
           />
         </div>

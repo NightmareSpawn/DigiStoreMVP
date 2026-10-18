@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/lib/cartStore";
 import { toman } from "@/lib/format";
-import { IRAN_CITIES } from "@/lib/cities";
+import { IRAN_PROVINCES, PROVINCE_NAMES } from "@/lib/provinces";
 
 export default function CheckoutPage() {
   const { items, subtotal, clear } = useCart();
   const router = useRouter();
 
   const [fullName, setFullName] = useState("");
-  const [city, setCity] = useState(IRAN_CITIES[0]);
-  const [province, setProvince] = useState("");
+  const [province, setProvince] = useState(PROVINCE_NAMES[0]);
+  const [city, setCity] = useState(IRAN_PROVINCES[PROVINCE_NAMES[0]][0]);
   const [line1, setLine1] = useState("");
   const [phone, setPhone] = useState("");
   const [discountCode, setDiscountCode] = useState("");
@@ -75,24 +75,34 @@ export default function CheckoutPage() {
             className="border rounded-lg px-3 py-2 w-full text-sm"
             required
           />
-          <select
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="border rounded-lg px-3 py-2 w-full text-sm"
-          >
-            {IRAN_CITIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <input
-            value={province}
-            onChange={(e) => setProvince(e.target.value)}
-            placeholder="استان"
-            className="border rounded-lg px-3 py-2 w-full text-sm"
-            required
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={province}
+              onChange={(e) => {
+                const newProvince = e.target.value;
+                setProvince(newProvince);
+                setCity(IRAN_PROVINCES[newProvince][0]); // reset city to match the new province
+              }}
+              className="border rounded-lg px-3 py-2 w-full text-sm"
+            >
+              {PROVINCE_NAMES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="border rounded-lg px-3 py-2 w-full text-sm"
+            >
+              {IRAN_PROVINCES[province].map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
           <input
             value={line1}
             onChange={(e) => setLine1(e.target.value)}

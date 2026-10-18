@@ -1,0 +1,344 @@
+// ============================================================
+// Digistore MVP — Prisma schema
+// Dev: SQLite (zero config). Swap provider to "postgresql" for prod.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // change to "postgresql" for production (see README)
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------
+// Users & roles
+// ----------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  CUSTOMER
+}
+
+model User {
+  id          String   @id @default(cuid())
+  phone       String   @unique
+  name        String?
+  role        Role     @default(CUSTOMER)
+  passwordHash String? // optional: OTP-only login is fine without a password
+  createdAt   DateTime @default(now())
+
+  // Referral / invite system
+  inviteCodeUsed   String? // invite code this user signed up with
+  referredByCode   String? // referrer's personal code, if any
+  myReferralCode   String  @unique @default(cuid())
+
+  // Loyalty tier (computed periodically from totalSpent, but cached here)
+  totalSpent  Int      @default(0) // in Toman, trailing period
+  tier        CustomerTier @default(NONE)
+
+  // Shahkar ("own-mobile-number") verification, required to buy in restricted categories.
+  // MOCK for now — see /api/account/verify-own-mobile for how to wire a real Shahkar check.
+  ownMobileVerified Boolean @default(false)
+
+  orders            Order[]
+  addresses         Address[]
+  categoryAccess    AdminCategoryAccess[] // only populated for ADMIN role
+  productReviews    Review[]
+  otpCodes          OtpCode[]
+  discountCodesUsed DiscountCodeUsage[]
+
+  @@index([role])
+}
+
+enum CustomerTier {
+  NONE
+  BRONZE // 7m - 15m
+  SILVER // 15m - 30m
+  ROSE_GOLD // 30m - 60m
+  GOLD // 60m - 90m
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  purpose   String   // "signup" | "login"
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([phone, purpose])
+}
+
+model InviteCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  createdBy String?  // admin user id, optional
+  maxUses   Int      @default(1)
+  usedCount Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ----------------------------------------------------------
+// Admin access control (category-scoped)
+// ----------------------------------------------------------
+
+model AdminCategoryAccess {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, categoryId])
+}
+
+// ----------------------------------------------------------
+// Catalog
+// ----------------------------------------------------------
+
+enum ProductType {
+  PHYSICAL
+  DOWNLOADABLE_FILE
+  VIDEO_COURSE
+  SERVICE
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  requiresOwnMobile Boolean @default(false) // special-restriction categories (Shahkar-verified own number only)
+
+  products       Product[]
+  adminAccess    AdminCategoryAccess[]
+
+  createdAt DateTime @default(now())
+
+  @@index([parentId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  title       String
+  slug        String      @unique
+  description String      @default("")
+  type        ProductType @default(PHYSICAL)
+  brand       String?
+  sku         String?     @unique
+
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+
+  // Pricing
+  costPrice       Int      @default(0) // قیمت تمام‌شده (خریداری‌شده)
+  listPrice        Int     @default(0) // قیمت خط‌خورده (قبل از تخفیف)
+  price            Int     // قیمت فروش فعلی (نهایی قبل از مالیات/ارسال)
+  taxPercent       Float   @default(0)
+  shippingCost     Int     @default(0)
+  discountPercent  Int     @default(0) // تخفیف تکی فعال فعلی
+
+  digikalaUrl  String?    // لینک محصول مشابه در دیجی‌کالا برای مقایسه (نمایش دستی/ کش‌شده، نه اسکرپ زنده)
+
+  images      ProductImage[]
+  variants    ProductVariant[]
+  priceHistory PriceHistory[]
+  reviews     Review[]
+  orderItems  OrderItem[]
+
+  status      ProductStatus @default(DRAFT)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([type])
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int     @default(0)
+}
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String  // e.g. "رنگ: قرمز / سایز: XL"
+  sku       String?
+  priceDelta Int    @default(0) // added/subtracted from base price
+  stock     Int     @default(0)
+
+  orderItems OrderItem[]
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  price     Int
+  recordedAt DateTime @default(now())
+
+  @@index([productId, recordedAt])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int      // 1-5
+  comment   String?
+  verifiedPurchase Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ----------------------------------------------------------
+// Discounts
+// ----------------------------------------------------------
+
+model DiscountCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  percent         Int?     // percent-based
+  amount          Int?     // flat-amount based (Toman)
+  appliesToCategoryId String? // optional: restrict to one category
+  maxUses         Int?
+  usedCount       Int      @default(0)
+  active          Boolean  @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  usages DiscountCodeUsage[]
+}
+
+model DiscountCodeUsage {
+  id             String       @id @default(cuid())
+  discountCodeId String
+  discountCode   DiscountCode @relation(fields: [discountCodeId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  orderId        String       @unique
+  order          Order        @relation(fields: [orderId], references: [id])
+  createdAt      DateTime     @default(now())
+}
+
+// ----------------------------------------------------------
+// Orders & payments
+// ----------------------------------------------------------
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  fullName  String
+  city      String
+  province  String
+  postalCode String?
+  line1     String
+  phone     String
+  isDefault Boolean  @default(false)
+  orders    Order[]
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  addressId     String?
+  address       Address?    @relation(fields: [addressId], references: [id])
+
+  items         OrderItem[]
+  subtotal      Int
+  discountTotal Int         @default(0)
+  taxTotal      Int         @default(0)
+  shippingTotal Int         @default(0)
+  grandTotal    Int
+
+  status        OrderStatus @default(PENDING_PAYMENT)
+  payment       Payment?
+  discountUsage DiscountCodeUsage?
+
+  trackingCode  String?     // shipping tracking code shown to customer
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String          @id @default(cuid())
+  orderId    String
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id])
+  variantId  String?
+  variant    ProductVariant? @relation(fields: [variantId], references: [id])
+  titleSnapshot String
+  unitPrice  Int
+  quantity   Int
+}
+
+enum PaymentMethod {
+  CARD_TO_CARD
+  ZARINPAL
+}
+
+enum PaymentStatus {
+  PENDING_REVIEW   // card-to-card: waiting for admin approval
+  AWAITING_GATEWAY // zarinpal: redirected, waiting for callback
+  SUCCESS
+  FAILED
+  REJECTED
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  orderId         String        @unique
+  order           Order         @relation(fields: [orderId], references: [id])
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING_REVIEW)
+
+  // card-to-card fields
+  cardTrackingCode String?
+  reviewedByAdminId String?
+  reviewedAt        DateTime?
+
+  // zarinpal fields
+  zarinpalAuthority String?
+  zarinpalRefId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

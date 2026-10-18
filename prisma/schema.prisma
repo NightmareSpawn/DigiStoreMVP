@@ -16,17 +16,18 @@ datasource db {
 // Users & roles
 // ----------------------------------------------------------
 
-enum Role {
-  SUPER_ADMIN
-  ADMIN
-  CUSTOMER
-}
+// NOTE: SQLite has no native enum support, so role/status/type fields below
+// are plain String columns. The allowed values are enforced in TypeScript
+// (see src/lib/enums.ts) instead of at the database level. If you switch
+// `provider` to "postgresql" later, you can convert these back to real
+// Prisma enums for stronger DB-level guarantees — not required for the MVP.
 
+/// Role: "SUPER_ADMIN" | "ADMIN" | "CUSTOMER"
 model User {
   id          String   @id @default(cuid())
   phone       String   @unique
   name        String?
-  role        Role     @default(CUSTOMER)
+  role        String   @default("CUSTOMER")
   passwordHash String? // optional: OTP-only login is fine without a password
   createdAt   DateTime @default(now())
 
@@ -36,8 +37,9 @@ model User {
   myReferralCode   String  @unique @default(cuid())
 
   // Loyalty tier (computed periodically from totalSpent, but cached here)
+  // CustomerTier: "NONE" | "BRONZE" | "SILVER" | "ROSE_GOLD" | "GOLD"
   totalSpent  Int      @default(0) // in Toman, trailing period
-  tier        CustomerTier @default(NONE)
+  tier        String   @default("NONE")
 
   // Shahkar ("own-mobile-number") verification, required to buy in restricted categories.
   // MOCK for now — see /api/account/verify-own-mobile for how to wire a real Shahkar check.
@@ -51,14 +53,6 @@ model User {
   discountCodesUsed DiscountCodeUsage[]
 
   @@index([role])
-}
-
-enum CustomerTier {
-  NONE
-  BRONZE // 7m - 15m
-  SILVER // 15m - 30m
-  ROSE_GOLD // 30m - 60m
-  GOLD // 60m - 90m
 }
 
 model OtpCode {
@@ -103,13 +97,6 @@ model AdminCategoryAccess {
 // Catalog
 // ----------------------------------------------------------
 
-enum ProductType {
-  PHYSICAL
-  DOWNLOADABLE_FILE
-  VIDEO_COURSE
-  SERVICE
-}
-
 model Category {
   id        String     @id @default(cuid())
   name      String
@@ -127,12 +114,14 @@ model Category {
   @@index([parentId])
 }
 
+/// ProductType: "PHYSICAL" | "DOWNLOADABLE_FILE" | "VIDEO_COURSE" | "SERVICE"
+/// ProductStatus: "DRAFT" | "PUBLISHED" | "ARCHIVED"
 model Product {
   id          String      @id @default(cuid())
   title       String
   slug        String      @unique
   description String      @default("")
-  type        ProductType @default(PHYSICAL)
+  type        String      @default("PHYSICAL")
   brand       String?
   sku         String?     @unique
 
@@ -155,19 +144,13 @@ model Product {
   reviews     Review[]
   orderItems  OrderItem[]
 
-  status      ProductStatus @default(DRAFT)
+  status      String   @default("DRAFT")
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([categoryId])
   @@index([type])
-}
-
-enum ProductStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
 }
 
 model ProductImage {
@@ -262,15 +245,7 @@ model Address {
   orders    Order[]
 }
 
-enum OrderStatus {
-  PENDING_PAYMENT
-  PAID
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
-}
-
+/// OrderStatus: "PENDING_PAYMENT" | "PAID" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED"
 model Order {
   id            String      @id @default(cuid())
   userId        String
@@ -285,7 +260,7 @@ model Order {
   shippingTotal Int         @default(0)
   grandTotal    Int
 
-  status        OrderStatus @default(PENDING_PAYMENT)
+  status        String      @default("PENDING_PAYMENT")
   payment       Payment?
   discountUsage DiscountCodeUsage?
 
@@ -310,25 +285,14 @@ model OrderItem {
   quantity   Int
 }
 
-enum PaymentMethod {
-  CARD_TO_CARD
-  ZARINPAL
-}
-
-enum PaymentStatus {
-  PENDING_REVIEW   // card-to-card: waiting for admin approval
-  AWAITING_GATEWAY // zarinpal: redirected, waiting for callback
-  SUCCESS
-  FAILED
-  REJECTED
-}
-
+/// PaymentMethod: "CARD_TO_CARD" | "ZARINPAL"
+/// PaymentStatus: "PENDING_REVIEW" | "AWAITING_GATEWAY" | "SUCCESS" | "FAILED" | "REJECTED"
 model Payment {
-  id              String        @id @default(cuid())
-  orderId         String        @unique
-  order           Order         @relation(fields: [orderId], references: [id])
-  method          PaymentMethod
-  status          PaymentStatus @default(PENDING_REVIEW)
+  id              String   @id @default(cuid())
+  orderId         String   @unique
+  order           Order    @relation(fields: [orderId], references: [id])
+  method          String
+  status          String   @default("PENDING_REVIEW")
 
   // card-to-card fields
   cardTrackingCode String?

@@ -1,4 +1,4 @@
-import { CustomerTier } from "@prisma/client";
+import type { CustomerTier } from "./enums";
 
 /**
  * Customer tier thresholds, exactly as specified in the project brief
@@ -9,9 +9,9 @@ import { CustomerTier } from "@prisma/client";
  *   GOLD     : 60M - 90M+
  */
 export function computeTier(totalSpent: number): CustomerTier {
-  if (totalSpent >= 60_000_000) return CustomerTier.GOLD;
-  if (totalSpent >= 30_000_000) return CustomerTier.ROSE_GOLD;
-  if (totalSpent >= 15_000_000) return CustomerTier.SILVER;
-  if (totalSpent >= 7_000_000) return CustomerTier.BRONZE;
-  return CustomerTier.NONE;
+  if (totalSpent >= 60_000_000) return "GOLD";
+  if (totalSpent >= 30_000_000) return "ROSE_GOLD";
+  if (totalSpent >= 15_000_000) return "SILVER";
+  if (totalSpent >= 7_000_000) return "BRONZE";
+  return "NONE";
 }

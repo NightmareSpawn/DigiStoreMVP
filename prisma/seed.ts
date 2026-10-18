@@ -1,4 +1,4 @@
-import { PrismaClient, ProductType, ProductStatus, Role } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -9,8 +9,8 @@ async function main() {
 
   const superAdmin = await prisma.user.upsert({
     where: { phone },
-    update: { role: Role.SUPER_ADMIN },
-    create: { phone, name, role: Role.SUPER_ADMIN },
+    update: { role: "SUPER_ADMIN" },
+    create: { phone, name, role: "SUPER_ADMIN" },
   });
   console.log(`Super admin ready: ${superAdmin.phone} (login with OTP; in dev the code is printed to the console)`);
 
@@ -49,7 +49,7 @@ async function main() {
     {
       title: "هدفون بی‌سیم مدل X1",
       slug: "wireless-headphone-x1",
-      type: ProductType.PHYSICAL,
+      type: "PHYSICAL",
       brand: "SoundMax",
       categoryId: electronics.id,
       costPrice: 1_200_000,
@@ -62,7 +62,7 @@ async function main() {
     {
       title: "اتوی بخار حرفه‌ای",
       slug: "steam-iron-pro",
-      type: ProductType.PHYSICAL,
+      type: "PHYSICAL",
       brand: "HomePlus",
       categoryId: homeAppliances.id,
       costPrice: 800_000,
@@ -75,7 +75,7 @@ async function main() {
     {
       title: "دوره آموزش ویدئویی Next.js",
       slug: "nextjs-video-course",
-      type: ProductType.VIDEO_COURSE,
+      type: "VIDEO_COURSE",
       brand: null,
       categoryId: courses.id,
       costPrice: 0,
@@ -88,7 +88,7 @@ async function main() {
     {
       title: "تی‌شرت نخی مردانه",
       slug: "mens-cotton-tshirt",
-      type: ProductType.PHYSICAL,
+      type: "PHYSICAL",
       brand: "BasicWear",
       categoryId: fashion.id,
       costPrice: 150_000,
@@ -106,7 +106,7 @@ async function main() {
       update: {},
       create: {
         ...p,
-        status: ProductStatus.PUBLISHED,
+        status: "PUBLISHED",
         createdById: superAdmin.id,
         images: {
           create: [{ url: "https://placehold.co/600x600?text=" + encodeURIComponent(p.title), sortOrder: 0 }],
